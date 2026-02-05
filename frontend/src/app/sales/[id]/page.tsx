@@ -1,5 +1,6 @@
 import Link from "next/link";
 import VoidSaleCard from "./VoidSaleCard";
+import { API_URL } from "@/lib/api";
 
 type SaleItem = {
   sale_item_id: string;
@@ -13,6 +14,8 @@ type SaleItem = {
   sale_price: number;
   profit: number;
   created_at: string;
+  width?: number | null;
+  height?: number | null;
 };
 
 type SaleMovement = {
@@ -50,7 +53,7 @@ type SaleDetail = {
 };
 
 async function getSaleDetail(id: string): Promise<SaleDetail> {
-  const res = await fetch(`http://127.0.0.1:8000/sales/${id}`, {
+  const res = await fetch(`${API_URL}/sales/${id}`, {
     cache: "no-store",
   });
 
@@ -69,6 +72,7 @@ export default async function SaleDetailPage({
 }) {
   const { id } = await params;
   const sale = await getSaleDetail(id);
+  const hasDims = sale.items.some((i) => i.width != null || i.height != null);
 
   return (
     <main className="p-6 max-w-5xl">
@@ -86,11 +90,7 @@ export default async function SaleDetailPage({
       />
 
       {/* Resumen */}
-      <div
-        className={`rounded border p-4 bg-white mb-6 ${
-          sale.voided ? "border-red-300 bg-red-50" : ""
-        }`}
-      >
+      <div className={`card mb-6 ${sale.voided ? "border-red-200 bg-red-50" : ""}`}>
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm text-zinc-600">
             <b>ID:</b> {sale.sale_id}
@@ -135,7 +135,7 @@ export default async function SaleDetailPage({
 
         {/* Info de anulación */}
         {sale.voided && (
-          <div className="mt-2 rounded border border-red-200 bg-white p-3">
+          <div className="card border-red-200 bg-white mt-2">
             <div className="text-sm text-red-700 font-semibold">
               Venta anulada
             </div>
@@ -158,19 +158,19 @@ export default async function SaleDetailPage({
         )}
 
         <div className="mt-3 grid gap-2 sm:grid-cols-3">
-          <div className="rounded border p-3">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Total</div>
             <div className="text-xl font-bold">
               {sale.currency} {sale.total_sale.toFixed(2)}
             </div>
           </div>
-          <div className="rounded border p-3">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Costo</div>
             <div className="text-xl font-bold">
               {sale.currency} {sale.total_cost.toFixed(2)}
             </div>
           </div>
-          <div className="rounded border p-3">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Ganancia</div>
             <div className="text-xl font-bold">
               {sale.currency} {sale.total_profit.toFixed(2)}
@@ -187,12 +187,14 @@ export default async function SaleDetailPage({
       {sale.items.length === 0 ? (
         <p className="text-zinc-600 mb-6">Esta venta no tiene items.</p>
       ) : (
-        <table className="w-full border border-gray-300 border-collapse mb-8">
-          <thead className="bg-gray-100">
+        <table className="table-base w-full mb-8">
+          <thead>
             <tr>
               <th className="border p-2 text-left">Producto</th>
               <th className="border p-2 text-left">Receta</th>
               <th className="border p-2 text-right">Qty</th>
+              {hasDims && <th className="border p-2 text-right">Ancho</th>}
+              {hasDims && <th className="border p-2 text-right">Alto</th>}
               <th className="border p-2 text-right">Precio</th>
               <th className="border p-2 text-right">Costo</th>
               <th className="border p-2 text-right">Ganancia</th>
@@ -207,6 +209,8 @@ export default async function SaleDetailPage({
                 <td className="border p-2">{it.product_name || it.product_id}</td>
                 <td className="border p-2">{it.recipe_name || it.recipe_id}</td>
                 <td className="border p-2 text-right">{it.qty}</td>
+                {hasDims && <td className="border p-2 text-right">{it.width ?? "—"}</td>}
+                {hasDims && <td className="border p-2 text-right">{it.height ?? "—"}</td>}
                 <td className="border p-2 text-right">
                   {sale.currency} {it.sale_price.toFixed(2)}
                 </td>
@@ -227,8 +231,8 @@ export default async function SaleDetailPage({
       {sale.movements.length === 0 ? (
         <p className="text-zinc-600">No hay movimientos para esta venta.</p>
       ) : (
-        <table className="w-full border border-gray-300 border-collapse">
-          <thead className="bg-gray-100">
+        <table className="table-base w-full">
+          <thead>
             <tr>
               <th className="border p-2 text-left">Insumo</th>
               <th className="border p-2 text-right">Cantidad</th>

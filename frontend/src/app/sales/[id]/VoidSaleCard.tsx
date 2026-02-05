@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 type Props = {
   saleId: string;
@@ -36,7 +37,7 @@ export default function VoidSaleCard({ saleId, voided, initialReason }: Props) {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://127.0.0.1:8000/sales/${saleId}/void`, {
+      const res = await fetch(`${API_URL}/sales/${saleId}/void`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason: reason.trim() }),
@@ -64,7 +65,7 @@ export default function VoidSaleCard({ saleId, voided, initialReason }: Props) {
   }
 
   return (
-    <div className="mt-4 rounded border p-4 bg-white">
+    <div className="card mt-4">
       {/* Toast */}
       {toast && (
         <div
@@ -99,7 +100,7 @@ export default function VoidSaleCard({ saleId, voided, initialReason }: Props) {
       {/* Modal */}
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded bg-white p-4 shadow">
+          <div className="card w-full max-w-md">
             <div className="text-lg font-bold">Confirmar anulación</div>
             <p className="text-sm text-zinc-600 mt-1">
               Esto creará movimientos <b>IN (sale_void)</b> y marcará la venta como anulada.

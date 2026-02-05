@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { API_URL } from "@/lib/api";
 
 type Supply = {
   id: string;
@@ -27,7 +28,7 @@ type Movement = {
   created_at: string;
 };
 
-const API = "http://127.0.0.1:8000";
+const API = API_URL;
 
 export default function KardexPage() {
   const searchParams = useSearchParams();
@@ -198,14 +199,14 @@ export default function KardexPage() {
         <button
           onClick={load}
           disabled={!supplyId || loading}
-          className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {loading ? "Cargando..." : "Ver Kardex"}
         </button>
       </div>
 
       {selectedSupply && (
-        <div className="mb-4 rounded border p-3 bg-white">
+        <div className="card mb-4">
           <div className="font-semibold">{selectedSupply.name}</div>
           <div className="text-sm text-zinc-600">Unidad base: {selectedSupply.unit_base}</div>
         </div>
@@ -215,21 +216,21 @@ export default function KardexPage() {
 
       {selectedSupply && rows.length > 0 && (
         <div className="mb-4 grid gap-2 sm:grid-cols-3">
-          <div className="rounded border p-3 bg-white">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Total IN</div>
             <div className="text-xl font-bold">
               {totalIn.toFixed(2)} {unit}
             </div>
           </div>
 
-          <div className="rounded border p-3 bg-white">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Total OUT</div>
             <div className="text-xl font-bold">
               {totalOut.toFixed(2)} {unit}
             </div>
           </div>
 
-          <div className="rounded border p-3 bg-white">
+          <div className="stat-card">
             <div className="text-sm text-zinc-600">Saldo final (stock actual)</div>
             <div className="text-xl font-bold">
               {finalBalance == null ? "—" : `${finalBalance.toFixed(2)} ${unit}`}
@@ -245,8 +246,8 @@ export default function KardexPage() {
         <p className="text-zinc-600">Selecciona un insumo y presiona “Ver Kardex”.</p>
       ) : (
         rows.length > 0 && (
-          <table className="w-full border border-gray-300 border-collapse">
-            <thead className="bg-gray-100">
+          <table className="table-base w-full">
+            <thead>
               <tr>
                 <th className="border p-2 text-left">Tipo</th>
                 <th className="border p-2 text-right">Cantidad</th>

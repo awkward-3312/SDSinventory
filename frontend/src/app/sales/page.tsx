@@ -1,4 +1,6 @@
 import Link from "next/link";
+import SalesSummaryCard from "./SalesSummaryCard"; // ✅ AÑADIR
+import { API_URL } from "@/lib/api";
 
 type SaleRow = {
   id: string;
@@ -14,7 +16,7 @@ type SaleRow = {
 };
 
 async function getSales(): Promise<SaleRow[]> {
-  const res = await fetch("http://127.0.0.1:8000/sales?limit=50&offset=0", {
+  const res = await fetch(`${API_URL}/sales?limit=50&offset=0`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("Error al cargar ventas");
@@ -44,23 +46,20 @@ export default async function SalesPage({
   const countActive = sales.filter((s) => !s.voided).length;
   const countVoided = sales.filter((s) => s.voided).length;
 
-  const tabClass = (on: boolean) =>
-    `border rounded px-3 py-1 text-sm font-semibold ${
-      on ? "bg-black text-white" : "bg-white hover:bg-zinc-50"
-    }`;
+  const tabClass = (on: boolean) => `chip ${on ? "chip-active" : ""}`;
 
   return (
     <main className="p-6 max-w-5xl">
       <div className="flex items-center justify-between gap-4 mb-4">
         <h1 className="text-2xl font-bold">Ventas</h1>
 
-        <Link
-          href="/sales/new"
-          className="rounded bg-black text-white px-4 py-2 hover:opacity-90"
-        >
+        <Link href="/sales/new" className="btn btn-primary">
           + Nueva venta
         </Link>
       </div>
+
+      {/* ✅ AÑADIR: Resumen con filtros por periodo */}
+      <SalesSummaryCard />
 
       {/* Filtros */}
       <div className="flex gap-2 mb-4">
@@ -84,8 +83,8 @@ export default async function SalesPage({
       {filtered.length === 0 ? (
         <p className="text-zinc-600">No hay ventas para este filtro.</p>
       ) : (
-        <table className="w-full border border-gray-300 border-collapse">
-          <thead className="bg-gray-100">
+        <table className="table-base w-full">
+          <thead>
             <tr>
               <th className="border p-2 text-left">Estado</th>
               <th className="border p-2 text-left">Fecha</th>

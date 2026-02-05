@@ -1,3 +1,5 @@
+import { API_URL } from "@/lib/api";
+
 type AlertSupply = {
   supply_id: string;
   name: string;
@@ -8,7 +10,7 @@ type AlertSupply = {
 };
 
 async function getLowStockAlerts(): Promise<AlertSupply[]> {
-  const res = await fetch("http://127.0.0.1:8000/alerts/low-stock", {
+  const res = await fetch(`${API_URL}/alerts/low-stock`, {
     cache: "no-store",
   });
 
@@ -33,8 +35,8 @@ export default async function AlertsPage() {
           ✅ No hay insumos con stock bajo
         </p>
       ) : (
-        <table className="w-full border border-red-300 border-collapse">
-          <thead className="bg-red-100">
+        <table className="table-base table-alert w-full">
+          <thead>
             <tr>
               <th className="border p-2 text-left">Insumo</th>
               <th className="border p-2 text-right">Stock actual</th>

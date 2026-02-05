@@ -9,38 +9,48 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
     <html lang="es">
       <body>
-        <header className="border-b bg-white">
-          <nav className="mx-auto max-w-5xl px-6 py-4 flex gap-6">
-            <Link className="font-semibold hover:underline" href="/">
+        <header className="app-header">
+          <nav className="app-nav mx-auto max-w-5xl px-6 py-4 flex items-center">
+            <Link className="nav-link" href="/">
               Insumos
             </Link>
-            <Link className="font-semibold hover:underline" href="/alerts">
+
+            <Link className="nav-link" href="/alerts">
               Alertas
             </Link>
-            <Link className="font-semibold hover:underline" href="/products">
-            Productos
+
+            <Link className="nav-link" href="/products">
+              Productos
             </Link>
-            <Link className="font-semibold hover:underline" href="/production">
-            Producción
+
+            <Link className="nav-link" href="/production">
+              Producción
             </Link>
-            <Link className="font-semibold hover:underline" href="/kardex">
-            Kardex
+
+            <Link className="nav-link" href="/kardex">
+              Kardex
             </Link>
-            <Link href="/sales/new" className="font-semibold hover:underline">
-            Ventas
+
+            {/* Ventas = listado */}
+            <Link href="/sales" className="nav-link">
+              Ventas
+            </Link>
+
+            <Link className="nav-link" href="/dashboard">
+              Dashboard
             </Link>
           </nav>
         </header>
 
-        <div className="mx-auto max-w-5xl">
+        <main className="app-main mx-auto max-w-5xl px-6 pb-10">
           {children}
-        </div>
+        </main>
       </body>
     </html>
   );

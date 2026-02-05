@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { API_URL } from "@/lib/api";
 
 type Product = {
   id: string;
@@ -48,7 +49,7 @@ function isOk(r: ProductionResponse): r is ProductionOk {
 }
 
 async function fetchRecipeCost(recipeId: string): Promise<RecipeCost> {
-  const res = await fetch(`http://127.0.0.1:8000/recipes/${recipeId}/cost`, {
+  const res = await fetch(`${API_URL}/recipes/${recipeId}/cost`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("cost");
@@ -66,7 +67,7 @@ async function fetchRecipeCost(recipeId: string): Promise<RecipeCost> {
 
 async function fetchSuggestedPrice(recipeId: string): Promise<SuggestedPrice> {
   const res = await fetch(
-    `http://127.0.0.1:8000/recipes/${recipeId}/suggested-price?mode=margin&value=0.4`,
+    `${API_URL}/recipes/${recipeId}/suggested-price?mode=margin&value=0.4`,
     { cache: "no-store" }
   );
   if (!res.ok) throw new Error("price");
@@ -96,7 +97,7 @@ export default function ProductionPage() {
 
   // Cargar productos
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/products")
+    fetch(`${API_URL}/products`)
       .then((r) => r.json() as Promise<ApiProduct[]>)
       .then((data) => setProducts(data.map((p) => ({ id: p.id, name: p.name }))))
       .catch(() => setProducts([]));
@@ -112,7 +113,7 @@ export default function ProductionPage() {
       return;
     }
 
-    fetch(`http://127.0.0.1:8000/recipes?product_id=${encodeURIComponent(productId)}`)
+    fetch(`${API_URL}/recipes?product_id=${encodeURIComponent(productId)}`)
       .then((r) => r.json() as Promise<ApiRecipe[]>)
       .then((data) => setRecipes(data.map((rec) => ({ id: rec.id, name: rec.name }))))
       .catch(() => setRecipes([]));
@@ -142,7 +143,7 @@ export default function ProductionPage() {
     setResult(null);
 
     try {
-      const res = await fetch("http://127.0.0.1:8000/production", {
+      const res = await fetch(`${API_URL}/production`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -211,7 +212,7 @@ export default function ProductionPage() {
 
         {/* Preview */}
         {previewCost && previewPrice && (
-          <div className="rounded border p-3 bg-white">
+          <div className="card">
             <div className="font-semibold mb-1">Preview</div>
             <div className="text-sm">
               <b>Costo materiales:</b> {previewCost.currency} {previewCost.materials_cost}
@@ -237,14 +238,14 @@ export default function ProductionPage() {
         <button
           onClick={submit}
           disabled={!productId || !recipeId || qty <= 0 || loading}
-          className="rounded bg-black text-white px-4 py-2 disabled:opacity-50"
+          className="btn btn-primary"
         >
           {loading ? "Registrando..." : "Registrar"}
         </button>
       </div>
 
       {result && (
-        <div className="mt-6 rounded border p-4 bg-white">
+        <div className="card mt-6">
           {!isOk(result) ? (
             <div className="text-red-700 font-semibold">❌ {result.error}</div>
           ) : (
@@ -269,7 +270,7 @@ export default function ProductionPage() {
                     {result.consumptions.map((c) => (
                       <li
                         key={c.supply_id}
-                        className="flex items-center justify-between gap-3 rounded border p-3"
+                        className="card flex items-center justify-between gap-3"
                       >
                         <div className="text-sm">
                           <div>
@@ -284,7 +285,7 @@ export default function ProductionPage() {
                         </div>
 
                         <a
-                          className="rounded border px-3 py-2 hover:bg-zinc-50"
+                          className="btn btn-secondary btn-sm"
                           href={`/kardex?supply_id=${encodeURIComponent(c.supply_id)}`}
                         >
                           Ver Kardex →

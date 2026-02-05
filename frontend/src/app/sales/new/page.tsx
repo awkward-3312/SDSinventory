@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { API_URL } from "@/lib/api";
 
 type Product = { id: string; name: string };
 type Recipe = { id: string; name: string };
@@ -9,7 +10,7 @@ type Recipe = { id: string; name: string };
 type ApiProduct = { id: string; name: string };
 type ApiRecipe = { id: string; name: string };
 
-type RecipeCost = { recipe_id: string; materials_cost: number; currency: string };
+type RecipeCost = { recipe_id: string; materials_cost: number; currency: string; is_variable?: boolean };
 
 type SaleLine = {
   key: string; // para React key estable
@@ -17,6 +18,8 @@ type SaleLine = {
   recipe_id: string;
   qty: number;
   sale_price: string; // string para input (puede estar vacío)
+  width: string;
+  height: string;
 };
 
 type SaleResponse =
@@ -51,8 +54,12 @@ function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
 }
 
-async function fetchRecipeCost(recipeId: string): Promise<RecipeCost> {
-  const res = await fetch(`http://127.0.0.1:8000/recipes/${recipeId}/cost`, {
+async function fetchRecipeCost(recipeId: string, width?: number, height?: number): Promise<RecipeCost> {
+  const qs =
+    width != null && height != null
+      ? `?width=${encodeURIComponent(String(width))}&height=${encodeURIComponent(String(height))}`
+      : "";
+  const res = await fetch(`${API_URL}/recipes/${recipeId}/cost${qs}`, {
     cache: "no-store",
   });
   if (!res.ok) throw new Error("No se pudo cargar costo de receta");
@@ -60,11 +67,20 @@ async function fetchRecipeCost(recipeId: string): Promise<RecipeCost> {
   return data;
 }
 
-async function fetchSuggestedPrice(recipeId: string, margin: number): Promise<number> {
+async function fetchSuggestedPrice(
+  recipeId: string,
+  margin: number,
+  width?: number,
+  height?: number
+): Promise<number> {
+  const qs =
+    width != null && height != null
+      ? `&width=${encodeURIComponent(String(width))}&height=${encodeURIComponent(String(height))}`
+      : "";
   const res = await fetch(
-    `http://127.0.0.1:8000/recipes/${recipeId}/suggested-price?mode=margin&value=${encodeURIComponent(
+    `${API_URL}/recipes/${recipeId}/suggested-price?mode=margin&value=${encodeURIComponent(
       String(margin)
-    )}`,
+    )}${qs}`,
     { cache: "no-store" }
   );
   if (!res.ok) throw new Error("No se pudo cargar precio sugerido");
@@ -86,7 +102,7 @@ export default function NewSalePage() {
   const [suggestedByRecipe, setSuggestedByRecipe] = useState<Record<string, number>>({});
 
   const [lines, setLines] = useState<SaleLine[]>([
-    { key: uid(), product_id: "", recipe_id: "", qty: 1, sale_price: "" },
+    { key: uid(), product_id: "", recipe_id: "", qty: 1, sale_price: "", width: "", height: "" },
   ]);
 
   const [loading, setLoading] = useState(false);
@@ -94,7 +110,7 @@ export default function NewSalePage() {
 
   // Load products
   useEffect(() => {
-    fetch("http://127.0.0.1:8000/products")
+    fetch(`${API_URL}/products`)
       .then((r) => r.json() as Promise<ApiProduct[]>)
       .then((data) => setProducts(data.map((p) => ({ id: p.id, name: p.name }))))
       .catch(() => setProducts([]));
@@ -105,12 +121,16 @@ export default function NewSalePage() {
     setSuggestedByRecipe({}); // resetea cache
   }, [margin]);
 
+  function costKey(recipeId: string, width?: number, height?: number) {
+    return `${recipeId}|${width ?? ""}|${height ?? ""}`;
+  }
+
   async function ensureRecipes(productId: string) {
     if (!productId) return;
     if (recipesByProduct[productId]) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8000/recipes?product_id=${productId}`, {
+      const res = await fetch(`${API_URL}/recipes?product_id=${productId}`, {
         cache: "no-store",
       });
       const data = (await res.json()) as ApiRecipe[];
@@ -123,42 +143,49 @@ export default function NewSalePage() {
     }
   }
 
-  async function ensureCost(recipeId: string) {
+  async function ensureCost(recipeId: string, width?: number, height?: number) {
     if (!recipeId) return;
-    if (costByRecipe[recipeId]) return;
+    const key = costKey(recipeId, width, height);
+    if (costByRecipe[key]) return;
 
     try {
-      const c = await fetchRecipeCost(recipeId);
-      setCostByRecipe((prev) => ({ ...prev, [recipeId]: c }));
+      const c = await fetchRecipeCost(recipeId, width, height);
+      setCostByRecipe((prev) => ({ ...prev, [key]: c }));
     } catch {
       // si falla, no seteamos nada
     }
   }
 
-  async function ensureSuggested(recipeId: string) {
+  async function ensureSuggested(recipeId: string, width?: number, height?: number) {
     if (!recipeId) return;
-    if (suggestedByRecipe[recipeId] != null) return;
+    const key = costKey(recipeId, width, height);
+    if (suggestedByRecipe[key] != null) return;
 
     try {
-      const s = await fetchSuggestedPrice(recipeId, margin);
-      setSuggestedByRecipe((prev) => ({ ...prev, [recipeId]: s }));
+      const s = await fetchSuggestedPrice(recipeId, margin, width, height);
+      setSuggestedByRecipe((prev) => ({ ...prev, [key]: s }));
     } catch {
-      setSuggestedByRecipe((prev) => ({ ...prev, [recipeId]: 0 }));
+      setSuggestedByRecipe((prev) => ({ ...prev, [key]: 0 }));
     }
   }
 
   // Prefetch cuando cambian recetas seleccionadas
   useEffect(() => {
-    const ids = Array.from(new Set(lines.map((l) => l.recipe_id).filter(Boolean)));
-    ids.forEach((rid) => {
-      ensureCost(rid);
-      ensureSuggested(rid);
+    lines.forEach((l) => {
+      if (!l.recipe_id) return;
+      const width = l.width.trim() ? Number(l.width) : undefined;
+      const height = l.height.trim() ? Number(l.height) : undefined;
+      ensureCost(l.recipe_id, width, height);
+      ensureSuggested(l.recipe_id, width, height);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, margin]);
 
   function addLine() {
-    setLines((prev) => [...prev, { key: uid(), product_id: "", recipe_id: "", qty: 1, sale_price: "" }]);
+    setLines((prev) => [
+      ...prev,
+      { key: uid(), product_id: "", recipe_id: "", qty: 1, sale_price: "", width: "", height: "" },
+    ]);
   }
 
   function removeLine(key: string) {
@@ -171,14 +198,18 @@ export default function NewSalePage() {
 
   const computed = useMemo(() => {
     const lineViews = lines.map((l) => {
-      const suggested = l.recipe_id ? (suggestedByRecipe[l.recipe_id] ?? 0) : 0;
+      const widthNum = l.width.trim() ? Number(l.width) : undefined;
+      const heightNum = l.height.trim() ? Number(l.height) : undefined;
+      const baseKey = l.recipe_id ? costKey(l.recipe_id) : "";
+      const key = l.recipe_id ? costKey(l.recipe_id, widthNum, heightNum) : "";
+      const suggested = l.recipe_id ? (suggestedByRecipe[key] ?? 0) : 0;
       const salePriceNum = l.sale_price.trim() ? Number(l.sale_price) : null;
       const unitPrice = salePriceNum != null && !Number.isNaN(salePriceNum) ? salePriceNum : suggested;
 
       const qty = Number(l.qty || 0);
       const subtotal = unitPrice * qty;
 
-      const materialsCost = l.recipe_id ? (costByRecipe[l.recipe_id]?.materials_cost ?? 0) : 0;
+      const materialsCost = l.recipe_id ? (costByRecipe[key]?.materials_cost ?? 0) : 0;
       const costTotal = materialsCost * qty;
 
       return {
@@ -188,6 +219,10 @@ export default function NewSalePage() {
         subtotal,
         materialsCost,
         costTotal,
+        widthNum,
+        heightNum,
+        costKey: key,
+        baseKey,
       };
     });
 
@@ -203,8 +238,16 @@ export default function NewSalePage() {
     if (loading) return false;
     if (computed.lineViews.length === 0) return false;
     // cada línea debe tener product + recipe y qty > 0
-    return computed.lineViews.every((l) => l.product_id && l.recipe_id && l.qty > 0);
-  }, [computed.lineViews, loading]);
+    return computed.lineViews.every((l) => {
+      if (!l.product_id || !l.recipe_id || l.qty <= 0) return false;
+      const isVar =
+        (l.baseKey && costByRecipe[l.baseKey]?.is_variable) ||
+        (l.costKey && costByRecipe[l.costKey]?.is_variable) ||
+        false;
+      if (isVar && (!l.widthNum || !l.heightNum)) return false;
+      return true;
+    });
+  }, [computed.lineViews, loading, costByRecipe]);
 
   async function submit() {
   setLoading(true);
@@ -222,6 +265,8 @@ export default function NewSalePage() {
           recipe_id: string;
           qty: number;
           sale_price?: number;
+          width?: number;
+          height?: number;
         } = {
           product_id: l.product_id,
           recipe_id: l.recipe_id,
@@ -231,12 +276,16 @@ export default function NewSalePage() {
         // si está vacío => NO enviar sale_price (backend usa sugerido)
         const sp = l.sale_price.trim();
         if (sp !== "") out.sale_price = Number(sp);
+        if (l.widthNum != null && l.heightNum != null) {
+          out.width = l.widthNum;
+          out.height = l.heightNum;
+        }
 
         return out;
       }),
     };
 
-    const res = await fetch("http://127.0.0.1:8000/sales", {
+    const res = await fetch(`${API_URL}/sales`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -293,15 +342,15 @@ export default function NewSalePage() {
 
       {/* Resumen en vivo */}
       <div className="mb-6 grid gap-2 sm:grid-cols-3">
-        <div className="rounded border p-3 bg-white">
+        <div className="stat-card">
           <div className="text-sm text-zinc-600">Total venta (preview)</div>
           <div className="text-xl font-bold">L {computed.totalSale.toFixed(2)}</div>
         </div>
-        <div className="rounded border p-3 bg-white">
+        <div className="stat-card">
           <div className="text-sm text-zinc-600">Costo (preview)</div>
           <div className="text-xl font-bold">L {computed.totalCost.toFixed(2)}</div>
         </div>
-        <div className="rounded border p-3 bg-white">
+        <div className="stat-card">
           <div className="text-sm text-zinc-600">Utilidad (preview)</div>
           <div className="text-xl font-bold">
             L {computed.profit.toFixed(2)}{" "}
@@ -313,11 +362,11 @@ export default function NewSalePage() {
       </div>
 
       {/* Líneas */}
-      <div className="rounded border p-4 bg-white">
+      <div className="card">
         <div className="flex items-center justify-between mb-3">
           <div className="font-semibold">Líneas</div>
           <button
-            className="border rounded px-3 py-2 hover:bg-zinc-50"
+            className="btn btn-secondary btn-sm"
             onClick={addLine}
             type="button"
           >
@@ -326,8 +375,13 @@ export default function NewSalePage() {
         </div>
 
         <div className="grid gap-4">
-          {computed.lineViews.map((l) => (
-            <div key={l.key} className="rounded border p-3">
+          {computed.lineViews.map((l) => {
+            const isVariable =
+              (l.baseKey && costByRecipe[l.baseKey]?.is_variable) ||
+              (l.costKey && costByRecipe[l.costKey]?.is_variable) ||
+              false;
+            return (
+              <div key={l.key} className="card">
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Producto */}
                 <label className="grid gap-1">
@@ -337,7 +391,7 @@ export default function NewSalePage() {
                     value={l.product_id}
                     onChange={(e) => {
                       const pid = e.target.value;
-                      updateLine(l.key, { product_id: pid, recipe_id: "" });
+                      updateLine(l.key, { product_id: pid, recipe_id: "", width: "", height: "" });
                       ensureRecipes(pid);
                     }}
                   >
@@ -356,7 +410,9 @@ export default function NewSalePage() {
                   <select
                     className="border rounded px-3 py-2"
                     value={l.recipe_id}
-                    onChange={(e) => updateLine(l.key, { recipe_id: e.target.value })}
+                    onChange={(e) =>
+                      updateLine(l.key, { recipe_id: e.target.value, width: "", height: "" })
+                    }
                     disabled={!l.product_id}
                   >
                     <option value="">
@@ -370,6 +426,33 @@ export default function NewSalePage() {
                   </select>
                 </label>
               </div>
+
+              {isVariable && (
+                <div className="grid gap-3 mt-3 sm:grid-cols-2">
+                  <label className="grid gap-1">
+                    <span className="font-medium">Ancho</span>
+                    <input
+                      className="border rounded px-3 py-2"
+                      type="number"
+                      min={0}
+                      value={l.width}
+                      onChange={(e) => updateLine(l.key, { width: e.target.value })}
+                      placeholder="Ej: 1.2"
+                    />
+                  </label>
+                  <label className="grid gap-1">
+                    <span className="font-medium">Alto</span>
+                    <input
+                      className="border rounded px-3 py-2"
+                      type="number"
+                      min={0}
+                      value={l.height}
+                      onChange={(e) => updateLine(l.key, { height: e.target.value })}
+                      placeholder="Ej: 0.8"
+                    />
+                  </label>
+                </div>
+              )}
 
               <div className="grid gap-3 mt-3 sm:grid-cols-3">
                 {/* Qty */}
@@ -415,7 +498,7 @@ export default function NewSalePage() {
 
               <div className="mt-3 flex justify-end">
                 <button
-                  className="border rounded px-3 py-2 hover:bg-zinc-50"
+                  className="btn btn-secondary btn-sm"
                   onClick={() => removeLine(l.key)}
                   type="button"
                   disabled={lines.length === 1}
@@ -425,13 +508,14 @@ export default function NewSalePage() {
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         <button
           onClick={submit}
           disabled={!canSubmit}
-          className="mt-4 rounded bg-black text-white px-4 py-2 disabled:opacity-50"
+          className="mt-4 btn btn-primary"
         >
           {loading ? "Registrando..." : "Registrar venta"}
         </button>
@@ -439,7 +523,7 @@ export default function NewSalePage() {
 
       {/* Resultado */}
       {result && (
-        <div className="mt-6 rounded border p-4 bg-white">
+        <div className="card mt-6">
           {"error" in result ? (
             <div className="text-red-700 font-semibold">❌ {result.error}</div>
           ) : (
