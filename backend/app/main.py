@@ -4,13 +4,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.config import get_settings
 from .routers import (
     alerts,
+    fixed_costs,
     health,
     movements,
     presentations,
     production,
     products,
     recipe_items,
+    recipe_options,
+    recipe_rules,
+    recipe_variables,
     recipes,
+    quotes,
     sales,
     supplies,
     units,
@@ -41,6 +46,11 @@ app.include_router(movements.router)
 app.include_router(products.router)
 app.include_router(recipes.router)
 app.include_router(recipe_items.router)
+app.include_router(recipe_variables.router)
+app.include_router(recipe_options.router)
+app.include_router(recipe_rules.router)
 app.include_router(production.router)
 app.include_router(alerts.router)
 app.include_router(sales.router)
+app.include_router(fixed_costs.router)
+app.include_router(quotes.router)

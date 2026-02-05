@@ -16,6 +16,9 @@ type Product = {
   id: string;
   name: string;
   product_type?: string;
+  category?: string | null;
+  unit_sale?: string | null;
+  margin_target?: number | null;
 };
 
 export default function ProductDetailPage() {
@@ -150,13 +153,23 @@ export default function ProductDetailPage() {
           {product && (
             <div className="text-sm text-zinc-600">
               Producto: <b>{product.name}</b>{" "}
+              {product.category ? `• ${product.category}` : ""}
+              {product.unit_sale ? `• Unidad: ${product.unit_sale}` : ""}
               {product.product_type === "variable" ? "• Variable" : "• Fijo"}
+              {product.margin_target != null ? `• Margen ${Math.round(product.margin_target * 100)}%` : ""}
             </div>
           )}
         </div>
         <Link className="font-semibold hover:underline" href="/products">
           ← Volver a Productos
         </Link>
+      </div>
+
+      <div className="card mb-6">
+        <div className="font-semibold mb-1">Siguiente paso</div>
+        <div className="text-sm text-zinc-600">
+          Crea la receta con insumos y cantidades. En la receta podrás ver costo y precio sugerido con margen.
+        </div>
       </div>
 
       <div className="card mb-6">

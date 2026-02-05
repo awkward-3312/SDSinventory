@@ -22,9 +22,8 @@ def add_recipe_item(recipe_id: str, supply_id: str, qty_base: float, waste_pct: 
                 names = validate_formula(qty_formula)
                 if product_type == "fixed":
                     raise HTTPException(status_code=400, detail="Receta fija no puede usar fórmula")
-                # variable recipe must reference dimensions
                 if product_type == "variable" and not names:
-                    raise HTTPException(status_code=400, detail="Fórmula debe usar ancho/alto")
+                    raise HTTPException(status_code=400, detail="Fórmula debe usar al menos una variable")
             else:
                 if product_type == "variable":
                     raise HTTPException(status_code=400, detail="Receta variable requiere fórmula")
@@ -82,7 +81,7 @@ def update_recipe_item(item_id: str, recipe_id: str, supply_id: str, qty_base: f
                 if product_type == "fixed":
                     raise HTTPException(status_code=400, detail="Receta fija no puede usar fórmula")
                 if product_type == "variable" and not names:
-                    raise HTTPException(status_code=400, detail="Fórmula debe usar ancho/alto")
+                    raise HTTPException(status_code=400, detail="Fórmula debe usar al menos una variable")
             else:
                 if product_type == "variable":
                     raise HTTPException(status_code=400, detail="Receta variable requiere fórmula")

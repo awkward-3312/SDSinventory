@@ -1,12 +1,22 @@
 from fastapi import HTTPException
 from ..db import get_conn
 from ..repositories import sales as sales_repo
-from .formulas import eval_formula
-from .quantity import apply_waste
+from . import recipes as recipes_service
+from .fixed_costs import get_operational_cost_per_order
 
 
 def _round2(x: float) -> float:
     return round(float(x), 2)
+
+
+def _allocate_operational(total_operational: float, line_materials: list[float]) -> list[float]:
+    if not line_materials:
+        return []
+    total_materials = sum(line_materials)
+    if total_materials <= 0:
+        per = float(total_operational) / len(line_materials)
+        return [per for _ in line_materials]
+    return [float(total_operational) * (m / total_materials) for m in line_materials]
 
 
 def create_sale(payload):
@@ -24,6 +34,7 @@ def create_sale(payload):
                     total_cost = 0.0
                     prepared_lines: list[dict] = []
                     stock_needs: dict[str, float] = {}
+                    line_materials_list: list[float] = []
 
                     for line in payload.lines:
                         if float(line.qty) <= 0:
@@ -35,88 +46,82 @@ def create_sale(payload):
                                 detail=f"recipe_id no pertenece al product_id (recipe_id={line.recipe_id})",
                             )
 
-                        items = sales_repo.list_recipe_items_for_sale(cur, line.recipe_id)
+                        cost_data = recipes_service.compute_recipe_cost_strict(
+                            line.recipe_id,
+                            width=line.width,
+                            height=line.height,
+                            vars_payload=getattr(line, "vars", None),
+                            opts_payload=getattr(line, "opts", None),
+                        )
+                        items = cost_data["items"]
                         if not items:
                             raise HTTPException(status_code=400, detail="La receta no tiene items")
 
-                        line_materials_cost = 0.0
+                        unit_materials_cost = float(cost_data["materials_cost"])
+                        line_materials_cost = unit_materials_cost * float(line.qty)
                         consumptions_for_line: list[dict] = []
 
-                        for (
-                            supply_id,
-                            qty_base,
-                            waste_pct,
-                            avg_cost,
-                            _stock_on_hand,
-                            qty_formula,
-                            unit_code,
-                            unit_name,
-                        ) in items:
-                            if qty_formula:
-                                if line.width is None or line.height is None:
-                                    raise HTTPException(
-                                        status_code=400,
-                                        detail=f"El producto requiere ancho y alto (recipe_id={line.recipe_id})",
-                                    )
-                                if float(line.width) <= 0 or float(line.height) <= 0:
-                                    raise HTTPException(status_code=400, detail="Ancho/alto debe ser > 0")
-                                qty_unit = float(
-                                    eval_formula(
-                                        qty_formula,
-                                        {
-                                            "width": line.width,
-                                            "height": line.height,
-                                            "w": line.width,
-                                            "h": line.height,
-                                            "ancho": line.width,
-                                            "alto": line.height,
-                                        },
-                                    )
-                                )
-                            else:
-                                if line.width is not None or line.height is not None:
-                                    raise HTTPException(
-                                        status_code=400,
-                                        detail="Ancho/alto solo permitido en recetas con fórmula",
-                                    )
-                                qty_unit = float(qty_base)
-
+                        for it in items:
+                            qty_unit = float(it["qty_with_waste"])
                             qty = qty_unit * float(line.qty)
-                            qty_with_waste = apply_waste(qty, float(waste_pct), unit_code, unit_name)
+                            cost_u = float(it["avg_unit_cost"])
+                            supply_id = str(it["supply_id"])
 
-                            cost_u = float(avg_cost)
-                            line_cost = qty_with_waste * cost_u
-                            line_materials_cost += line_cost
-
-                            stock_needs[str(supply_id)] = stock_needs.get(str(supply_id), 0.0) + qty_with_waste
+                            stock_needs[supply_id] = stock_needs.get(supply_id, 0.0) + qty
                             consumptions_for_line.append(
-                                {"supply_id": str(supply_id), "qty_base": qty_with_waste, "unit_cost": cost_u}
+                                {"supply_id": supply_id, "qty_base": qty, "unit_cost": cost_u}
                             )
-
-                        suggested = line_materials_cost / (1.0 - float(payload.margin))
-                        sale_price = float(line.sale_price) if line.sale_price is not None else float(suggested)
-                        if sale_price < 0:
-                            raise HTTPException(status_code=400, detail="sale_price debe ser >= 0")
-
-                        profit = sale_price - line_materials_cost
 
                         prepared_lines.append(
                             {
                                 "product_id": line.product_id,
                                 "recipe_id": line.recipe_id,
                                 "qty": float(line.qty),
-                                "materials_cost": float(line_materials_cost),
-                                "suggested_price": float(suggested),
-                                "sale_price": float(sale_price),
-                                "profit": float(profit),
+                                "materials_cost_total": float(line_materials_cost),
+                                "materials_cost_unit": float(unit_materials_cost),
                                 "consumptions": consumptions_for_line,
                                 "width": line.width,
                                 "height": line.height,
+                                "sale_price_unit": float(line.sale_price) if line.sale_price is not None else None,
+                                "vars": getattr(line, "vars", None),
+                                "opts": getattr(line, "opts", None),
                             }
                         )
 
-                        total_sale += sale_price
+                        line_materials_list.append(float(line_materials_cost))
                         total_cost += line_materials_cost
+
+                    operational_per_order, period_id = get_operational_cost_per_order()
+                    operational_total = float(operational_per_order)
+                    total_cost += operational_total
+
+                    op_allocs = _allocate_operational(operational_total, line_materials_list)
+
+                    total_sale = 0.0
+                    for idx, pl in enumerate(prepared_lines):
+                        op_alloc = float(op_allocs[idx]) if idx < len(op_allocs) else 0.0
+                        unit_cost_for_price = float(pl["materials_cost_unit"]) + (
+                            op_alloc / float(pl["qty"]) if float(pl["qty"]) > 0 else 0.0
+                        )
+                        suggested_unit = unit_cost_for_price / (1.0 - float(payload.margin))
+                        sale_price_unit = (
+                            float(pl["sale_price_unit"]) if pl["sale_price_unit"] is not None else float(suggested_unit)
+                        )
+                        if sale_price_unit < 0:
+                            raise HTTPException(status_code=400, detail="sale_price debe ser >= 0")
+
+                        line_sale_total = sale_price_unit * float(pl["qty"])
+                        line_suggested_total = float(suggested_unit) * float(pl["qty"])
+                        line_profit = line_sale_total - (float(pl["materials_cost_total"]) + op_alloc)
+
+                        pl["op_alloc"] = op_alloc
+                        pl["suggested_unit"] = suggested_unit
+                        pl["sale_price_unit"] = sale_price_unit
+                        pl["line_sale_total"] = line_sale_total
+                        pl["line_suggested_total"] = line_suggested_total
+                        pl["line_profit"] = line_profit
+
+                        total_sale += line_sale_total
 
                     total_profit = total_sale - total_cost
 
@@ -140,6 +145,9 @@ def create_sale(payload):
                         total_sale,
                         total_cost,
                         total_profit,
+                        total_materials=sum(line_materials_list),
+                        operational_cost=operational_total,
+                        fixed_cost_period_id=period_id,
                     )
 
                     sale_items_out: list[dict] = []
@@ -152,12 +160,13 @@ def create_sale(payload):
                             pl["product_id"],
                             pl["recipe_id"],
                             pl["qty"],
-                            pl["materials_cost"],
-                            pl["suggested_price"],
-                            pl["sale_price"],
-                            pl["profit"],
+                            pl["materials_cost_total"],
+                            pl["line_suggested_total"],
+                            pl["line_sale_total"],
+                            pl["line_profit"],
                             pl.get("width"),
                             pl.get("height"),
+                            {"vars": pl.get("vars") or {}, "opts": pl.get("opts") or {}},
                         )
 
                         for c in pl["consumptions"]:
@@ -188,20 +197,25 @@ def create_sale(payload):
                                 "product_id": pl["product_id"],
                                 "recipe_id": pl["recipe_id"],
                                 "qty": float(pl["qty"]),
-                                "materials_cost": _round2(pl["materials_cost"]),
-                                "suggested_price": _round2(pl["suggested_price"]),
-                                "sale_price": _round2(pl["sale_price"]),
-                                "profit": _round2(pl["profit"]),
+                                "materials_cost": _round2(pl["materials_cost_total"]),
+                                "suggested_price": _round2(pl["line_suggested_total"]),
+                                "sale_price": _round2(pl["line_sale_total"]),
+                                "profit": _round2(pl["line_profit"]),
                                 "width": pl.get("width"),
                                 "height": pl.get("height"),
                             }
                         )
+
+        total_profit = total_sale - total_cost
 
         return {
             "sale_id": str(sale_id),
             "currency": payload.currency,
             "total_sale": _round2(total_sale),
             "total_cost": _round2(total_cost),
+            "materials_cost_total": _round2(sum(line_materials_list)),
+            "operational_cost_total": _round2(operational_total),
+            "fixed_cost_period_id": period_id,
             "total_profit": _round2(total_profit),
             "margin": float(payload.margin),
             "items": sale_items_out,
@@ -229,11 +243,13 @@ def list_sales(limit: int = 50, offset: int = 0):
             "total_sale": float(r[5]),
             "total_cost": float(r[6]),
             "total_profit": float(r[7]),
-            "margin": float(r[8]) if r[8] is not None else 0.0,
-            "voided": bool(r[9]),
-            "voided_at": r[10],
-            "void_reason": r[11],
-            "voided_by": r[12],
+            "materials_cost_total": float(r[8]) if r[8] is not None else 0.0,
+            "operational_cost_total": float(r[9]) if r[9] is not None else 0.0,
+            "margin": float(r[10]) if r[10] is not None else 0.0,
+            "voided": bool(r[11]),
+            "voided_at": r[12],
+            "void_reason": r[13],
+            "voided_by": r[14],
         }
         for r in rows
     ]
@@ -345,11 +361,13 @@ def get_sale_detail(sale_id: str):
         "total_sale": float(head[5]),
         "total_cost": float(head[6]),
         "total_profit": float(head[7]),
-        "margin": float(head[8]) if head[8] is not None else None,
-        "voided": bool(head[9]),
-        "voided_at": head[10],
-        "void_reason": head[11],
-        "voided_by": head[12],
+        "materials_cost_total": float(head[8]) if head[8] is not None else 0.0,
+        "operational_cost_total": float(head[9]) if head[9] is not None else 0.0,
+        "margin": float(head[10]) if head[10] is not None else None,
+        "voided": bool(head[11]),
+        "voided_at": head[12],
+        "void_reason": head[13],
+        "voided_by": head[14],
         "items": items,
         "movements": movements,
     }

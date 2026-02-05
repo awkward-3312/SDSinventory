@@ -8,11 +8,20 @@ router = APIRouter()
 class ProductCreate(BaseModel):
     name: str
     product_type: str = "fixed"
+    category: str | None = None
+    unit_sale: str | None = None
+    margin_target: float | None = None
 
 
 @router.post("/products")
 def create_product(payload: ProductCreate):
-    return products_service.create_product(payload.name, payload.product_type)
+    return products_service.create_product(
+        payload.name,
+        payload.product_type,
+        payload.category,
+        payload.unit_sale,
+        payload.margin_target,
+    )
 
 
 @router.get("/products")
@@ -28,11 +37,21 @@ def get_product(product_id: str):
 class ProductUpdate(BaseModel):
     name: str
     product_type: str = "fixed"
+    category: str | None = None
+    unit_sale: str | None = None
+    margin_target: float | None = None
 
 
 @router.put("/products/{product_id}")
 def update_product(product_id: str, payload: ProductUpdate):
-    return products_service.update_product(product_id, payload.name, payload.product_type)
+    return products_service.update_product(
+        product_id,
+        payload.name,
+        payload.product_type,
+        payload.category,
+        payload.unit_sale,
+        payload.margin_target,
+    )
 
 
 class ProductActiveUpdate(BaseModel):

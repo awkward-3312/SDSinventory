@@ -1,11 +1,11 @@
 def insert_recipe(cur, product_id: str, name: str):
     cur.execute(
         """
-        insert into public.recipes (product_id, name)
-        values (%s, %s)
-        returning id, product_id, name, created_at
+        insert into public.recipes (product_id, name, margin_target)
+        values (%s, %s, (select margin_target from public.products where id=%s))
+        returning id, product_id, name, created_at, margin_target
         """,
-        (product_id, name),
+        (product_id, name, product_id),
     )
     return cur.fetchone()
 
@@ -13,7 +13,7 @@ def insert_recipe(cur, product_id: str, name: str):
 def list_recipes(cur, product_id: str):
     cur.execute(
         """
-        select id, product_id, name, created_at
+        select id, product_id, name, created_at, margin_target
         from public.recipes
         where product_id = %s
         order by created_at desc;
@@ -26,7 +26,7 @@ def list_recipes(cur, product_id: str):
 def get_recipe(cur, recipe_id: str):
     cur.execute(
         """
-        select r.id, r.product_id, r.name, r.created_at, p.product_type
+        select r.id, r.product_id, r.name, r.created_at, p.product_type, r.margin_target, p.margin_target
         from public.recipes r
         join public.products p on p.id = r.product_id
         where r.id = %s
@@ -56,9 +56,22 @@ def update_recipe(cur, recipe_id: str, name: str):
         update public.recipes
         set name=%s
         where id=%s
-        returning id, product_id, name, created_at
+        returning id, product_id, name, created_at, margin_target
         """,
         (name, recipe_id),
+    )
+    return cur.fetchone()
+
+
+def update_recipe_margin(cur, recipe_id: str, margin_target: float):
+    cur.execute(
+        """
+        update public.recipes
+        set margin_target=%s
+        where id=%s
+        returning id, product_id, margin_target
+        """,
+        (margin_target, recipe_id),
     )
     return cur.fetchone()
 

@@ -15,6 +15,7 @@ type Recipe = {
 
 type ApiProduct = { id: string; name: string };
 type ApiRecipe = { id: string; name: string };
+type ApiSupply = { id: string; name: string; unit_base: string };
 
 type Consumption = {
   supply_id: string;
@@ -91,6 +92,7 @@ export default function ProductionPage() {
   const [qty, setQty] = useState<number>(1);
   const [result, setResult] = useState<ProductionResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [supplyMap, setSupplyMap] = useState<Record<string, ApiSupply>>({});
 
   const [previewCost, setPreviewCost] = useState<RecipeCost | null>(null);
   const [previewPrice, setPreviewPrice] = useState<SuggestedPrice | null>(null);
@@ -101,6 +103,20 @@ export default function ProductionPage() {
       .then((r) => r.json() as Promise<ApiProduct[]>)
       .then((data) => setProducts(data.map((p) => ({ id: p.id, name: p.name }))))
       .catch(() => setProducts([]));
+  }, []);
+
+  // Cargar insumos para mostrar nombres en consumo
+  useEffect(() => {
+    fetch(`${API_URL}/supplies`, { cache: "no-store" })
+      .then((r) => r.json() as Promise<ApiSupply[]>)
+      .then((data) => {
+        const map: Record<string, ApiSupply> = {};
+        data.forEach((s) => {
+          map[s.id] = s;
+        });
+        setSupplyMap(map);
+      })
+      .catch(() => setSupplyMap({}));
   }, []);
 
   // Cargar recetas cuando cambia el producto
@@ -163,8 +179,21 @@ export default function ProductionPage() {
   }
 
   return (
-    <main className="p-6 max-w-2xl">
-      <h1 className="text-2xl font-bold mb-4">Registrar Producción</h1>
+    <main className="p-6 max-w-3xl">
+      <h1 className="text-2xl font-bold mb-2">Registrar Producción</h1>
+      <div className="text-sm text-zinc-600 mb-4">
+        Registra lo que fabricaste. El sistema descuenta insumos del inventario y deja el Kardex actualizado.
+      </div>
+
+      <div className="card mb-6">
+        <div className="font-semibold mb-1">Flujo rápido</div>
+        <div className="text-sm text-zinc-600">
+          1. Selecciona producto y receta • 2. Indica la cantidad • 3. Registra producción.
+        </div>
+        <div className="text-xs text-zinc-600 mt-2">
+          Si el producto es variable (usa ancho/alto), registra la venta/cotización para descontar insumos con medidas.
+        </div>
+      </div>
 
       <div className="grid gap-3">
         {/* Producto */}
@@ -213,9 +242,9 @@ export default function ProductionPage() {
         {/* Preview */}
         {previewCost && previewPrice && (
           <div className="card">
-            <div className="font-semibold mb-1">Preview</div>
+            <div className="font-semibold mb-1">Preview de costos</div>
             <div className="text-sm">
-              <b>Costo materiales:</b> {previewCost.currency} {previewCost.materials_cost}
+              <b>Costo materiales (unidad):</b> {previewCost.currency} {previewCost.materials_cost}
             </div>
             <div className="text-sm">
               <b>Precio sugerido (margen 40%):</b> {previewPrice.currency} {previewPrice.suggested_price}
@@ -225,7 +254,7 @@ export default function ProductionPage() {
 
         {/* Cantidad */}
         <label className="grid gap-1">
-          <span className="font-medium">Cantidad</span>
+          <span className="font-medium">Cantidad a producir</span>
           <input
             className="border rounded px-3 py-2"
             type="number"
@@ -268,19 +297,21 @@ export default function ProductionPage() {
 
                   <ul className="grid gap-2">
                     {result.consumptions.map((c) => (
-                      <li
-                        key={c.supply_id}
-                        className="card flex items-center justify-between gap-3"
-                      >
+                      <li key={c.supply_id} className="card flex items-center justify-between gap-3">
                         <div className="text-sm">
                           <div>
-                            <b>Supply:</b> {c.supply_id}
+                            <b>Insumo:</b>{" "}
+                            {supplyMap[c.supply_id]?.name || c.supply_id}
                           </div>
                           <div>
-                            <b>Cant.:</b> {c.qty_base}
+                            <b>Cant.:</b> {c.qty_base} {supplyMap[c.supply_id]?.unit_base || ""}
                           </div>
                           <div>
-                            <b>Costo u:</b> L {c.unit_cost}
+                            <b>Costo u:</b> L {Number(c.unit_cost).toFixed(2)}
+                          </div>
+                          <div>
+                            <b>Costo línea:</b>{" "}
+                            L {(Number(c.qty_base) * Number(c.unit_cost)).toFixed(2)}
                           </div>
                         </div>
 

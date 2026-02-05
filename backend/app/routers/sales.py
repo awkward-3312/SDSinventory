@@ -12,6 +12,8 @@ class SaleLine(BaseModel):
     sale_price: float | None = None
     width: float | None = None
     height: float | None = None
+    vars: dict[str, float] | None = None
+    opts: dict[str, str] | None = None
 
 
 class SaleCreate(BaseModel):

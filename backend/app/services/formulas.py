@@ -1,20 +1,12 @@
 import ast
 import math
+import re
 from fastapi import HTTPException
-
-
-ALLOWED_NAMES = {
-    "width",
-    "height",
-    "w",
-    "h",
-    "ancho",
-    "alto",
-}
 
 
 ALLOWED_BINOPS = (ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Pow, ast.Mod)
 ALLOWED_UNARYOPS = (ast.UAdd, ast.USub)
+_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 
 
 class FormulaEvaluator(ast.NodeVisitor):
@@ -55,8 +47,8 @@ class FormulaEvaluator(ast.NodeVisitor):
             raise HTTPException(status_code=400, detail="Constante no permitida en fórmula")
         if isinstance(node, ast.Name):
             name = node.id.lower()
-            if name not in ALLOWED_NAMES:
-                raise HTTPException(status_code=400, detail=f"Variable no permitida en fórmula: {node.id}")
+            if not _NAME_RE.match(node.id):
+                raise HTTPException(status_code=400, detail=f"Variable inválida en fórmula: {node.id}")
             if name not in self.variables:
                 raise HTTPException(status_code=400, detail=f"Variable requerida no enviada: {node.id}")
             return float(self.variables[name])
@@ -74,7 +66,7 @@ def eval_formula(expr: str, variables: dict[str, float]) -> float:
     return float(evaluator.visit(tree))
 
 
-def validate_formula(expr: str) -> set[str]:
+def validate_formula(expr: str, allowed_names: set[str] | None = None) -> set[str]:
     if not expr or not expr.strip():
         raise HTTPException(status_code=400, detail="Fórmula vacía")
     if len(expr) > 200:
@@ -85,11 +77,14 @@ def validate_formula(expr: str) -> set[str]:
         raise HTTPException(status_code=400, detail="Fórmula inválida")
 
     names: set[str] = set()
+    allowed = {n.lower() for n in allowed_names} if allowed_names else None
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Name):
+            if not _NAME_RE.match(node.id):
+                raise HTTPException(status_code=400, detail=f"Variable inválida en fórmula: {node.id}")
             name = node.id.lower()
-            if name not in ALLOWED_NAMES:
+            if allowed is not None and name not in allowed:
                 raise HTTPException(status_code=400, detail=f"Variable no permitida en fórmula: {node.id}")
             names.add(name)
         elif isinstance(node, ast.BinOp):

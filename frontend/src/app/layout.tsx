@@ -16,35 +16,55 @@ export default function RootLayout({
     <html lang="es">
       <body>
         <header className="app-header">
-          <nav className="app-nav mx-auto max-w-5xl px-6 py-4 flex items-center">
-            <Link className="nav-link" href="/">
-              Insumos
-            </Link>
+          <nav className="app-nav mx-auto max-w-5xl px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Link className="text-xl font-bold" href="/">
+                SDSinventory
+              </Link>
+              <span className="text-xs text-zinc-500">Costeo & Inventario</span>
+            </div>
 
-            <Link className="nav-link" href="/alerts">
-              Alertas
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link className="nav-link" href="/">
+                Insumos
+              </Link>
 
-            <Link className="nav-link" href="/products">
-              Productos
-            </Link>
+              <Link className="nav-link" href="/purchases">
+                Compras
+              </Link>
 
-            <Link className="nav-link" href="/production">
-              Producción
-            </Link>
+              <Link className="nav-link" href="/alerts">
+                Alertas
+              </Link>
 
-            <Link className="nav-link" href="/kardex">
-              Kardex
-            </Link>
+              <Link className="nav-link" href="/products">
+                Productos
+              </Link>
 
-            {/* Ventas = listado */}
-            <Link href="/sales" className="nav-link">
-              Ventas
-            </Link>
+              <Link className="nav-link" href="/production">
+                Producción
+              </Link>
 
-            <Link className="nav-link" href="/dashboard">
-              Dashboard
-            </Link>
+              <Link className="nav-link" href="/fixed-costs">
+                Costos fijos
+              </Link>
+
+              <Link className="nav-link" href="/kardex">
+                Kardex
+              </Link>
+
+              <Link href="/sales" className="nav-link">
+                Ventas
+              </Link>
+
+              <Link className="nav-link" href="/quotes">
+                Cotizaciones
+              </Link>
+
+              <Link className="nav-link" href="/dashboard">
+                Dashboard
+              </Link>
+            </div>
           </nav>
         </header>
 

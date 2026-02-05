@@ -34,11 +34,25 @@ def lock_supply_for_update(cur, supply_id: str):
     return cur.fetchone()
 
 
-def insert_sale(cur, customer_name, notes, currency, margin, total_sale, total_cost, total_profit):
+def insert_sale(
+    cur,
+    customer_name,
+    notes,
+    currency,
+    margin,
+    total_sale,
+    total_cost,
+    total_profit,
+    total_materials,
+    operational_cost,
+    fixed_cost_period_id,
+):
     cur.execute(
         """
-        insert into public.sales (customer_name, notes, currency, margin, total_sale, total_cost, total_profit)
-        values (%s, %s, %s, %s, %s, %s, %s)
+        insert into public.sales
+        (customer_name, notes, currency, margin, total_sale, total_cost, total_profit,
+         materials_cost_total, operational_cost_total, fixed_cost_period_id)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning id
         """,
         (
@@ -49,9 +63,15 @@ def insert_sale(cur, customer_name, notes, currency, margin, total_sale, total_c
             total_sale,
             total_cost,
             total_profit,
+            total_materials,
+            operational_cost,
+            fixed_cost_period_id,
         ),
     )
     return cur.fetchone()[0]
+
+
+import json
 
 
 def insert_sale_item(
@@ -66,12 +86,13 @@ def insert_sale_item(
     profit,
     var_width,
     var_height,
+    var_payload,
 ):
     cur.execute(
         """
         insert into public.sale_items
-        (sale_id, product_id, recipe_id, qty, materials_cost, suggested_price, sale_price, profit, var_width, var_height)
-        values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        (sale_id, product_id, recipe_id, qty, materials_cost, suggested_price, sale_price, profit, var_width, var_height, var_payload)
+        values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         returning id
         """,
         (
@@ -85,6 +106,7 @@ def insert_sale_item(
             profit,
             var_width,
             var_height,
+            json.dumps(var_payload) if var_payload is not None else None,
         ),
     )
     return cur.fetchone()[0]
@@ -120,6 +142,8 @@ def list_sales(cur, limit: int, offset: int):
             s.total_sale,
             s.total_cost,
             s.total_profit,
+            s.materials_cost_total,
+            s.operational_cost_total,
             s.margin,
             s.voided,
             s.voided_at,
@@ -161,6 +185,8 @@ def get_sale_head(cur, sale_id: str):
             s.total_sale,
             s.total_cost,
             s.total_profit,
+            s.materials_cost_total,
+            s.operational_cost_total,
             s.margin,
             s.voided,
             s.voided_at,

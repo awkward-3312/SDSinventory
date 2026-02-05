@@ -43,6 +43,26 @@ def recipe_cost(recipe_id: str, width: float | None = None, height: float | None
     return recipes_service.recipe_cost(recipe_id, width=width, height=height)
 
 
+class RecipeCostBody(BaseModel):
+    width: float | None = None
+    height: float | None = None
+    vars: dict[str, float] | None = None
+    opts: dict[str, str] | None = None
+    strict: bool = False
+
+
+@router.post("/recipes/{recipe_id}/cost")
+def recipe_cost_post(recipe_id: str, payload: RecipeCostBody):
+    return recipes_service.recipe_cost(
+        recipe_id,
+        width=payload.width,
+        height=payload.height,
+        vars_payload=payload.vars,
+        opts_payload=payload.opts,
+        strict=payload.strict,
+    )
+
+
 @router.get("/recipes/{recipe_id}/suggested-price")
 def suggested_price(
     recipe_id: str,
@@ -52,3 +72,13 @@ def suggested_price(
     height: float | None = None,
 ):
     return recipes_service.suggested_price(recipe_id, value=value, mode=mode, width=width, height=height)
+
+
+class RecipeMarginUpdate(BaseModel):
+    margin_target: float
+    apply_to_product: bool = True
+
+
+@router.patch("/recipes/{recipe_id}/margin")
+def update_recipe_margin(recipe_id: str, payload: RecipeMarginUpdate):
+    return recipes_service.update_recipe_margin(recipe_id, payload.margin_target, payload.apply_to_product)
